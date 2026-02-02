@@ -24,9 +24,56 @@ pub enum Keywords {
     Mut,
 }
 
-pub enum Literal {}
+pub enum Literal {
+    FloatLit(f64),
+    StringLit(String),
+    IntLit(i64),
+}
 
-pub enum Operator {}
+#[derive(PartialEq, Eq)]
+pub enum Operator {
+    Equals,
+    Unequal,
+    GtEq,
+    StEq,
+    Greater,
+    Smaller,
+
+    Declare,
+
+    LCurly,
+    RCurly,
+    LBrace,
+    RBRace,
+    RSquare,
+    LSquare,
+
+    Plus,
+    Minus,
+    Mult,
+    Div,
+    Modulo,
+    LShift,
+    RShift,
+
+    Assign,
+    PlusAssign,
+    MultAssign,
+    MinusAssign,
+    DivAssign,
+
+    Colon,
+    Comma,
+    Tag,
+    FieldAccess,
+    Path,
+    Ignore,
+
+    Option,
+    DOption,
+    Error,
+    DError,
+}
 
 impl Keywords {
     pub fn try_from_string(str: &String) -> Option<Self> {

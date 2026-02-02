@@ -11,7 +11,7 @@ fn main() {
 
     let _compiler_path = args.next();
 
-    let files_tokens = Vec::new();
+    let mut files_tokens = Vec::new();
     for path_str in args {
         let path = path::Path::new(&path_str);
         if let Some(ext) = path.extension() {
@@ -26,9 +26,15 @@ fn main() {
         } else {
             println!("File without extension: {}", path_str);
         }
-        let file = fs::File::open(path).expect(format!("File not found: {}", file).as_str());
+        let file = fs::File::open(path).expect("File not found");
 
-        let tokens = lexer::lexer::lex(file);
+        let tokens = match lexer::lexer::lex(file) {
+            Ok(t) => t,
+            Err(err) => {
+                println!("Lexer error in file: {}. Error: {}", path_str, err);
+                return;
+            }
+        };
         files_tokens.push(tokens);
     }
 }
