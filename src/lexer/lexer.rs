@@ -1,7 +1,8 @@
 use crate::lexer::tokens::{self, *};
 use std::{fmt::Display, fs::File, io::Read};
+use std::str::FromStr;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, PartialOrd)]
 pub enum LexerError {
     CouldntReadFile,
     UnicodeUnsupported(u64),
@@ -41,8 +42,7 @@ enum LexState {
     FloatLit(String),
     StringLit(String),
     SymbolLit(String),
-    LineComment,
-    BlockComment(bool),
+    Comment,
 }
 
 struct StateMachine {
@@ -63,18 +63,13 @@ impl StateMachine {
         match &mut self.state {
             LexState::Open => self.state = LexState::Id(String::from(c)),
             LexState::Id(s) | LexState::StringLit(s) => s.push(c),
-            LexState::LineComment => (),
-            LexState::BlockComment(escape) => *escape = false,
+            LexState::Comment => (),
             LexState::FloatLit(_) | LexState::IntLit(_) => {
                 return Err(LexerError::IncorrectNumberLiteral(self.line));
             }
-            LexState::SymbolLit(_) => {
-                let sym = std::mem::replace(&mut self.state, LexState::Id(String::from(c)));
-                if let LexState::SymbolLit(s) = sym {
-                    resolve_sym(s, tokens, self.line)?;
-                } else {
-                    unreachable!();
-                }
+            LexState::SymbolLit(sym) => {
+                resolve_sym(sym.clone(), tokens, self.line)?;
+                self.state = LexState::Id(String::from(c));
             }
         }
 
@@ -85,21 +80,14 @@ impl StateMachine {
     fn read_num(&mut self, c: char, tokens: &mut Vec<Token>) -> Result<(), LexerError> {
         match &mut self.state {
             LexState::Open => self.state = LexState::IntLit(String::from(c)),
-            LexState::LineComment => (),
-            LexState::BlockComment(escape) => *escape = false,
-            LexState::IntLit(s) | LexState::FloatLit(s) => s.push(c),
-            LexState::Id(s) | LexState::StringLit(s) => s.push(c),
-            LexState::SymbolLit(_) => {
-                let sym = std::mem::replace(&mut self.state, LexState::IntLit(String::from(c)));
-                if let LexState::SymbolLit(s) = sym {
-                    match resolve_sym(s, tokens, self.line) {
-                        Ok(None) => (),
-                        Ok(Some(new_state)) => self.state = new_state,
-                        Err(err) => return Err(err),
-                    }
-                } else {
-                    unreachable!();
-                }
+            LexState::Comment => (),
+            LexState::IntLit(s)
+            | LexState::FloatLit(s)
+            | LexState::Id(s)
+            | LexState::StringLit(s) => s.push(c),
+            LexState::SymbolLit(sym) => {
+                resolve_sym(sym.clone(), tokens, self.line)?;
+                self.state = LexState::IntLit(String::from(c));
             }
         }
 
@@ -111,15 +99,10 @@ impl StateMachine {
         match std::mem::replace(&mut self.state, LexState::Open) {
             LexState::Open => (),
             LexState::Id(s) => resolve_id(s, tokens, self.line),
-            LexState::IntLit(s) => resolve_float(s, tokens, self.line),
+            LexState::IntLit(s) => resolve_int(s, tokens, self.line),
             LexState::FloatLit(s) => resolve_float(s, tokens, self.line),
-            LexState::SymbolLit(sym) => match resolve_sym(sym, tokens, self.line) {
-                Ok(None) => (),
-                Ok(Some(new_state)) => self.state = new_state,
-                Err(err) => return Err(err),
-            },
-            LexState::LineComment => self.state = LexState::LineComment,
-            LexState::BlockComment(_) => self.state = LexState::BlockComment(false),
+            LexState::SymbolLit(sym) => resolve_sym(sym, tokens, self.line)?,
+            LexState::Comment => self.state = LexState::Comment,
             LexState::StringLit(mut s) => {
                 s.push(' ');
                 self.state = LexState::StringLit(s)
@@ -131,7 +114,7 @@ impl StateMachine {
     #[must_use]
     fn read_new_line(&mut self, tokens: &mut Vec<Token>) -> Result<(), LexerError> {
         self.read_space(tokens)?;
-        if matches!(self.state, LexState::LineComment) {
+        if matches!(self.state, LexState::Comment) {
             self.state = LexState::Open;
         }
         tokens.push(Token::new(TokenType::Line, self.line));
@@ -147,37 +130,33 @@ impl StateMachine {
                 if c == '.' {
                     s.push(c);
                     self.state = LexState::FloatLit(s.clone());
-                } else {
-                    resolve_int(s, tokens, self.line);
+                    return Ok(());
                 }
+                resolve_int(s, tokens, self.line);
             }
             LexState::StringLit(mut s) => {
                 if c == '\"' {
                     resolve_string(s, tokens, self.line);
                     self.state = LexState::Open;
-                } else {
-                    s.push(c);
+                    return Ok(());
                 }
+                s.push(c);
+                self.state = LexState::StringLit(s);
             }
             LexState::FloatLit(s) => resolve_float(s, tokens, self.line),
             LexState::Id(s) => resolve_id(s, tokens, self.line),
-            LexState::LineComment => {
-                self.state = LexState::LineComment;
-            }
-            LexState::BlockComment(mut escape) => {
-                if escape && c == '\\' {
-                    self.state = LexState::Open;
-                } else if c == '*' {
-                    escape = true;
-                } else {
-                    escape = false;
-                }
-                self.state = LexState::BlockComment(escape);
-            }
+            LexState::Comment => self.state = LexState::Comment,
             LexState::SymbolLit(mut sym) => {
                 if c == '\"' {
                     resolve_sym(sym, tokens, self.line)?;
                     self.state = LexState::StringLit(String::new());
+                    return Ok(());
+                }
+                if c == '/' && sym.ends_with('/') {
+                    // We started a comment
+                    sym.pop().unwrap();
+                    resolve_sym(sym, tokens, self.line)?;
+                    self.state = LexState::Comment;
                     return Ok(());
                 }
                 sym.push(c);
@@ -202,12 +181,8 @@ pub fn lex(mut file: File) -> Result<Vec<Token>, LexerError> {
         }
 
         match char {
-            char if char.is_ascii_control() => {
-                return Err(LexerError::ControllCharacter(state.line));
-            }
-
             char if char.is_ascii_alphabetic() => {
-                state.read_string(char.to_ascii_lowercase(), &mut tokens)?;
+                state.read_string(char, &mut tokens)?;
             }
 
             char if char.is_ascii_digit() => {
@@ -226,6 +201,9 @@ pub fn lex(mut file: File) -> Result<Vec<Token>, LexerError> {
                 state.read_sym(char, &mut tokens)?;
             }
 
+            char if char.is_ascii_control() => {
+                return Err(LexerError::ControllCharacter(state.line));
+            }
             _ => {
                 panic!("Ascii parser not working: {}, {:?}", char, char);
             }
@@ -242,11 +220,7 @@ fn resolve_id(str: String, tokens: &mut Vec<Token>, line: u64) {
     }
 }
 
-fn resolve_sym(
-    str: String,
-    tokens: &mut Vec<Token>,
-    line: u64,
-) -> Result<Option<LexState>, LexerError> {
+fn resolve_sym(str: String, tokens: &mut Vec<Token>, line: u64) -> Result<(), LexerError> {
     // Since there is no case were the first 2 symbols form a double symbol and
     // second and third do as well we can do this greedily
     let mut operators = Vec::new();
@@ -261,28 +235,11 @@ fn resolve_sym(
 
     for sym in str.chars() {
         let op = match sym {
-            '*' => {
-                // We need to check if we have started a block comment (using /*)
-                let last = operators.last();
-                if last == Some(&Operator::Div) {
-                    // Yes i know the block comment could be escaped in the same symbol string
-                    // like /**/. Idc :)
-                    return Ok(Some(LexState::BlockComment(false)));
-                }
-                Operator::Mult
-            }
+            '*' => Operator::Mult,
             '+' => Operator::Plus,
             '-' => Operator::Minus,
             '%' => Operator::Modulo,
-
-            '/' => {
-                // We need to check if we have started a line comment (using //)
-                let last = operators.last();
-                if last == Some(&Operator::Div) {
-                    return Ok(Some(LexState::LineComment));
-                }
-                Operator::Div
-            }
+            '/' => Operator::Div,
 
             '(' => Operator::LBrace,
             ')' => Operator::RBRace,
@@ -342,7 +299,7 @@ fn resolve_sym(
     for op in operators {
         tokens.push(Token::new(TokenType::Operator(op), line));
     }
-    Ok(None)
+    Ok(())
 }
 
 fn resolve_float(str: String, tokens: &mut Vec<Token>, line: u64) {
@@ -353,7 +310,7 @@ fn resolve_float(str: String, tokens: &mut Vec<Token>, line: u64) {
 }
 
 fn resolve_int(str: String, tokens: &mut Vec<Token>, line: u64) {
-    let i: i64 = str.parse().expect("Faulty parse from int string to int");
+    let i= i64::from_str(&str).expect(format!("Faulty parse from int string to int, Str: {str}").as_str());
     tokens.push(Token::new(TokenType::Literal(Literal::IntLit(i)), line));
 }
 

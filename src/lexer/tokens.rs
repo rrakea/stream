@@ -1,8 +1,10 @@
+#[derive(Debug, PartialEq)]
 pub struct Token {
     ttype: TokenType,
     line: u64,
 }
 
+#[derive(Debug, PartialEq)]
 pub enum TokenType {
     Keyword(Keywords),
     Literal(Literal),
@@ -11,6 +13,7 @@ pub enum TokenType {
     Line,
 }
 
+#[derive(Debug, PartialEq)]
 pub enum Keywords {
     For,
     Fn,
@@ -24,13 +27,14 @@ pub enum Keywords {
     Mut,
 }
 
+#[derive(Debug, PartialEq)]
 pub enum Literal {
     FloatLit(f64),
     StringLit(String),
     IntLit(i64),
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Debug)]
 pub enum Operator {
     Equals,
     Unequal,
@@ -81,8 +85,13 @@ impl Keywords {
             "for" => Some(Self::For),
             "fn" => Some(Self::Fn),
             "type" => Some(Self::Type),
-            "if" => Some(Self::Else),
+            "if" => Some(Self::If),
+            "else" => Some(Self::Else),
+            "continue" => Some(Self::Continue),
+            "break" => Some(Self::Break),
             "return" => Some(Self::Return),
+            "in" => Some(Self::In),
+            "mut" => Some(Self::Mut),
             _ => None,
         }
     }
