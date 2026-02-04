@@ -1,6 +1,6 @@
-use crate::lexer::tokens::{self, *};
-use std::{fmt::Display, fs::File, io::Read};
+use crate::lexer::tokens::*;
 use std::str::FromStr;
+use std::{fmt::Display, fs::File, io::Read};
 
 #[derive(Debug, PartialEq, PartialOrd)]
 pub enum LexerError {
@@ -214,10 +214,24 @@ pub fn lex(mut file: File) -> Result<Vec<Token>, LexerError> {
 }
 
 fn resolve_id(str: String, tokens: &mut Vec<Token>, line: u64) {
-    match tokens::Keywords::try_from_string(&str) {
-        Some(t) => tokens.push(Token::new(TokenType::Keyword(t), line)),
-        None => tokens.push(Token::new(TokenType::Id(str), line)),
-    }
+    let keyword = match str.as_str() {
+        "for" => Keywords::For,
+        "fn" => Keywords::Fn,
+        "type" => Keywords::Type,
+        "if" => Keywords::If,
+        "else" => Keywords::Else,
+        "continue" => Keywords::Continue,
+        "break" => Keywords::Break,
+        "return" => Keywords::Return,
+        "in" => Keywords::In,
+        "mut" => Keywords::Mut,
+        _ => {
+            tokens.push(Token::new(TokenType::Id(str), line));
+            return;
+        }
+    };
+
+    tokens.push(Token::new(TokenType::Keyword(keyword), line));
 }
 
 fn resolve_sym(str: String, tokens: &mut Vec<Token>, line: u64) -> Result<(), LexerError> {
@@ -310,7 +324,8 @@ fn resolve_float(str: String, tokens: &mut Vec<Token>, line: u64) {
 }
 
 fn resolve_int(str: String, tokens: &mut Vec<Token>, line: u64) {
-    let i= i64::from_str(&str).expect(format!("Faulty parse from int string to int, Str: {str}").as_str());
+    let i = i64::from_str(&str)
+        .expect(format!("Faulty parse from int string to int, Str: {str}").as_str());
     tokens.push(Token::new(TokenType::Literal(Literal::IntLit(i)), line));
 }
 

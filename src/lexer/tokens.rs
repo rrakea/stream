@@ -4,6 +4,12 @@ pub struct Token {
     line: u64,
 }
 
+impl Token {
+    pub fn new(ttype: TokenType, line: u64) -> Token {
+        Token { ttype, line }
+    }
+}
+
 #[derive(Debug, PartialEq)]
 pub enum TokenType {
     Keyword(Keywords),
@@ -77,28 +83,4 @@ pub enum Operator {
     DOption,
     Error,
     DError,
-}
-
-impl Keywords {
-    pub fn try_from_string(str: &String) -> Option<Self> {
-        match str.as_str() {
-            "for" => Some(Self::For),
-            "fn" => Some(Self::Fn),
-            "type" => Some(Self::Type),
-            "if" => Some(Self::If),
-            "else" => Some(Self::Else),
-            "continue" => Some(Self::Continue),
-            "break" => Some(Self::Break),
-            "return" => Some(Self::Return),
-            "in" => Some(Self::In),
-            "mut" => Some(Self::Mut),
-            _ => None,
-        }
-    }
-}
-
-impl Token {
-    pub fn new(ttype: TokenType, line: u64) -> Token {
-        Token { ttype, line }
-    }
 }
