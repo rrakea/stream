@@ -1,16 +1,16 @@
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Token {
-    ttype: TokenType,
+    pub ty: TokenType,
     line: u64,
 }
 
 impl Token {
-    pub fn new(ttype: TokenType, line: u64) -> Token {
-        Token { ttype, line }
+    pub fn new(ty: TokenType, line: u64) -> Token {
+        Token { ty, line }
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum TokenType {
     Keyword(Keywords),
     Literal(Literal),
@@ -19,7 +19,7 @@ pub enum TokenType {
     Line,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Keywords {
     For,
     Fn,
@@ -31,16 +31,17 @@ pub enum Keywords {
     Break,
     In,
     Mut,
+    Global,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Literal {
     FloatLit(f64),
     StringLit(String),
     IntLit(i64),
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub enum Operator {
     Equals,
     Unequal,

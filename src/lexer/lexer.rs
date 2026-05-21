@@ -225,6 +225,7 @@ fn resolve_id(str: String, tokens: &mut Vec<Token>, line: u64) {
         "return" => Keywords::Return,
         "in" => Keywords::In,
         "mut" => Keywords::Mut,
+        "global" => Keywords::Global,
         _ => {
             tokens.push(Token::new(TokenType::Id(str), line));
             return;

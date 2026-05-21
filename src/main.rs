@@ -1,7 +1,15 @@
+mod ast;
 mod lexer;
+mod llvm;
+mod optimizer;
+mod parser;
+mod typechecker;
 
 use std::fs;
 use std::path;
+
+use crate::lexer::lexer::lex;
+use crate::parser::parser::parse;
 
 pub const LANG_NAME: &str = "stream";
 pub const FILE_EXTENSION: &str = "str";
@@ -28,7 +36,7 @@ fn main() {
         }
         let file = fs::File::open(path).expect("File not found");
 
-        let tokens = match lexer::lexer::lex(file) {
+        let tokens = match lex(file) {
             Ok(t) => t,
             Err(err) => {
                 println!("Lexer error in file: {}. Error: {}", path_str, err);
@@ -36,5 +44,9 @@ fn main() {
             }
         };
         files_tokens.push(tokens);
+    }
+
+    for tokens in files_tokens {
+        let parse_res = parse(tokens).unwrap();
     }
 }
